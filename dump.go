@@ -67,6 +67,15 @@ UNLOCK TABLES;
 -- Dump completed on {{ .CompleteTime }}
 `
 
+func getEscapedTableName(tbName string) (newName string) {
+	newName = "`" + tbName + "`"
+	if strings.HasPrefix(tbName, "`") {
+		newName = tbName
+	}
+
+	return
+}
+
 // Creates a MYSQL Dump based on the options supplied through the dumper.
 func (d *Dumper) Dump() (string, error) {
 	name := d.format
@@ -179,7 +188,7 @@ func createTableSQL(db *sql.DB, name string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if table_return.String != name {
+	if table_return.String != name && getEscapedTableName(table_return.String) != name {
 		return "", errors.New("Returned table is not the same as requested table")
 	}
 
