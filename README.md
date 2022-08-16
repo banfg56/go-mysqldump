@@ -1,6 +1,12 @@
 # Go MYSQL Dump
 Create MYSQL dumps in Go without the `mysqldump` CLI as a dependancy.
 
+## 改造内容
+
+1. 备份文件名传入时就确定，不再使用time 去格式化
+  因为某些表名带特殊数字，格式会被转义
+2. 对备份表史进行 ``引用，防止一些使用了关键词的表不能被正常操作
+
 ### Simple Example
 ```go
 package main
