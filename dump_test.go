@@ -34,7 +34,7 @@ func TestGetTablesOk(t *testing.T) {
 		t.Errorf("there were unfulfilled expections: %s", err)
 	}
 
-	expectedResult := []string{"Test_Table_1", "Test_Table_2"}
+	expectedResult := []string{"`Test_Table_1`", "`Test_Table_2`"}
 
 	if !reflect.DeepEqual(result, expectedResult) {
 		t.Fatalf("expected %#v, got %#v", result, expectedResult)
@@ -66,7 +66,7 @@ func TestGetTablesNil(t *testing.T) {
 		t.Errorf("there were unfulfilled expections: %s", err)
 	}
 
-	expectedResult := []string{"Test_Table_1", "", "Test_Table_3"}
+	expectedResult := []string{"`Test_Table_1`", "``", "`Test_Table_3`"}
 
 	if !reflect.DeepEqual(result, expectedResult) {
 		t.Fatalf("expected %#v, got %#v", expectedResult, result)
@@ -159,6 +159,37 @@ func TestCreateTableValuesOk(t *testing.T) {
 	}
 
 	expectedResult := "('1','test@test.de','Test Name 1'),('2','test2@test.de','Test Name 2')"
+
+	if !reflect.DeepEqual(result, expectedResult) {
+		t.Fatalf("expected %#v, got %#v", expectedResult, result)
+	}
+}
+
+func TestCreateTableValuesQuote(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("an error '%s' was not expected when opening a stub database connection", err)
+	}
+
+	defer db.Close()
+
+	rows := sqlmock.NewRows([]string{"id", "email", "name"}).
+		AddRow(1, "test@test.de", "Test Name's 1").
+		AddRow(2, "test2@test.de", `Test Name's\ 2`)
+
+	mock.ExpectQuery("^SELECT (.+) FROM test$").WillReturnRows(rows)
+
+	result, err := createTableValues(db, "test")
+	if err != nil {
+		t.Errorf("error was not expected while updating stats: %s", err)
+	}
+
+	// we make sure that all expectations were met
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("there were unfulfilled expections: %s", err)
+	}
+
+	expectedResult := `('1','test@test.de','Test Name\'s 1'),('2','test2@test.de','Test Name\'s\\ 2')`
 
 	if !reflect.DeepEqual(result, expectedResult) {
 		t.Fatalf("expected %#v, got %#v", expectedResult, result)
@@ -263,8 +294,8 @@ func TestDumpOk(t *testing.T) {
 
 	mock.ExpectQuery("^SELECT version()").WillReturnRows(serverVersionRows)
 	mock.ExpectQuery("^SHOW TABLES$").WillReturnRows(showTablesRows)
-	mock.ExpectQuery("^SHOW CREATE TABLE Test_Table$").WillReturnRows(createTableRows)
-	mock.ExpectQuery("^SELECT (.+) FROM Test_Table$").WillReturnRows(createTableValueRows)
+	mock.ExpectQuery("^SHOW CREATE TABLE `Test_Table`$").WillReturnRows(createTableRows)
+	mock.ExpectQuery("^SELECT (.+) FROM `Test_Table`$").WillReturnRows(createTableValueRows)
 
 	dumper := &Dumper{
 		db:     db,
@@ -309,29 +340,29 @@ func TestDumpOk(t *testing.T) {
 
 
 --
--- Table structure for table Test_Table
+-- Table structure for table \Test_Table\
 --
 
-DROP TABLE IF EXISTS Test_Table;
+DROP TABLE IF EXISTS \Test_Table\;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE 'Test_Table' (\id\ int(11) NOT NULL AUTO_INCREMENT,\email\ char(60) DEFAULT NULL, \name\ char(60), PRIMARY KEY (\id\))ENGINE=InnoDB DEFAULT CHARSET=latin1;
 /*!40101 SET character_set_client = @saved_cs_client */;
 --
--- Dumping data for table Test_Table
+-- Dumping data for table \Test_Table\
 --
 
-LOCK TABLES Test_Table WRITE;
-/*!40000 ALTER TABLE Test_Table DISABLE KEYS */;
+LOCK TABLES \Test_Table\ WRITE;
+/*!40000 ALTER TABLE \Test_Table\ DISABLE KEYS */;
 
-INSERT INTO Test_Table VALUES ('1',null,'Test Name 1'),('2','test2@test.de','Test Name 2');
+INSERT INTO \Test_Table\ VALUES ('1',null,'Test Name 1'),('2','test2@test.de','Test Name 2');
 
-/*!40000 ALTER TABLE Test_Table ENABLE KEYS */;
+/*!40000 ALTER TABLE \Test_Table\ ENABLE KEYS */;
 UNLOCK TABLES;
 
 `
 
 	if !reflect.DeepEqual(result, expected) {
-		t.Fatalf("expected %#v, got %#v", expected, result)
+		t.Fatalf("expected \n%#v, got\n %#v", expected, result)
 	}
 }

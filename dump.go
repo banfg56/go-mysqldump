@@ -23,6 +23,8 @@ type dump struct {
 	CompleteTime  string
 }
 
+var lazyMySQLReplacer *strings.Replacer
+
 const version = "0.2.2"
 
 const tmpl = `-- Go SQL Dump {{ .DumpVersion }}
@@ -195,6 +197,28 @@ func createTableSQL(db *sql.DB, name string) (string, error) {
 	return table_sql.String, nil
 }
 
+// sanitize MySQL based on
+// https://dev.mysql.com/doc/refman/8.0/en/string-literals.html table 9.1
+// needs to be placed in either a single or a double quoted string
+func sanitize(input string) string {
+	if lazyMySQLReplacer == nil {
+		lazyMySQLReplacer = strings.NewReplacer(
+			"\x00", "\\0",
+			"'", "\\'",
+			"\"", "\\\"",
+			"\b", "\\b",
+			"\n", "\\n",
+			"\r", "\\r",
+			// "\t", "\\t", Tab literals are acceptable in reads
+			"\x1A", "\\Z", // ASCII 26 == x1A
+			"\\", "\\\\",
+			// "%", "\\%",
+			// "_", "\\_",
+		)
+	}
+	return lazyMySQLReplacer.Replace(input)
+}
+
 func createTableValues(db *sql.DB, name string) (string, error) {
 	// Get Data
 	rows, err := db.Query("SELECT * FROM " + name)
@@ -235,14 +259,14 @@ func createTableValues(db *sql.DB, name string) (string, error) {
 
 		for key, value := range data {
 			if value != nil && value.Valid {
-				dataStrings[key] = "'" + value.String + "'"
+				dataStrings[key] = `'` + sanitize(value.String) + `'`
 			} else {
 				dataStrings[key] = "null"
 			}
 		}
 
-		data_text = append(data_text, "("+strings.Join(dataStrings, ",")+")")
+		data_text = append(data_text, `(`+strings.Join(dataStrings, `,`)+`)`)
 	}
 
-	return strings.Join(data_text, ","), rows.Err()
+	return strings.Join(data_text, `,`), rows.Err()
 }
